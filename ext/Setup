@@ -25,14 +25,14 @@
 #json/parser
 #nkf
 #objspace
-#openssl
+openssl
 #pathname
 #psych
 #pty
 #racc/cparse
 #rbconfig/sizeof
-#readline
-#ripper
+readline
+ripper
 #sdbm
 #socket
 #stringio
@@ -40,4 +40,4 @@
 #syslog
 #win32
 #win32ole
-#zlib
+zlib

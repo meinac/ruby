@@ -1522,6 +1522,8 @@ heap_page_allocate(rb_objspace_t *objspace)
 
     /* assign heap_page entry */
     page = (struct heap_page *)calloc(1, sizeof(struct heap_page));
+    /* assign flags to heap page */
+    page->flags = (struct heap_page_flags *)malloc(sizeof(struct heap_page_flags));
     if (page == 0) {
         rb_aligned_free(page_body);
 	rb_memerror();

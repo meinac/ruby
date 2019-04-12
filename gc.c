@@ -91,6 +91,44 @@ rb_gc_guarded_ptr_val(volatile VALUE *ptr, VALUE val)
 }
 #endif
 
+#include <sys/resource.h>
+static char* test_file_name = "/Users/mehmet.inac/Work/ruby_output";
+static FILE *f;
+
+static float to_megabytes(long value) {
+    return value / 1024.0 / 1024.0;
+}
+
+static int pid_index(void) {
+    getpid() % 2;
+}
+
+long* last_memory_usage = NULL;
+int* last_memory_initializer = NULL;
+
+static long get_last_memory_usage() {
+    if(last_memory_usage == NULL || last_memory_initializer != getpid()) {
+        last_memory_usage = (long*)malloc(sizeof(long));
+        last_memory_usage = 0;
+        last_memory_initializer = (int*)malloc(sizeof(int));
+        last_memory_initializer = getpid();
+    }
+
+    return last_memory_usage;
+}
+
+static void print_if_memory_increases(char* id) {
+    struct rusage r_usage;
+    getrusage(RUSAGE_SELF, &r_usage);
+
+    if(get_last_memory_usage() < r_usage.ru_maxrss) {
+        f = fopen(test_file_name, "a+");
+        fprintf(f, "Process ID %d, Memory usage increased FROM: %fMB, TO: %fMB. AT: `%s`\n", getpid(), to_megabytes(last_memory_usage), to_megabytes(r_usage.ru_maxrss), id);
+        last_memory_usage = r_usage.ru_maxrss;
+        fclose(f);
+    }
+}
+
 #ifndef GC_HEAP_INIT_SLOTS
 #define GC_HEAP_INIT_SLOTS 10000
 #endif
@@ -3804,9 +3842,11 @@ gc_sweep_step(rb_objspace_t *objspace, rb_heap_t *heap)
 #endif
 
     do {
+        print_if_memory_increases("before gc_page_sweep");
 	int free_slots = gc_page_sweep(objspace, heap, sweep_page);
+        print_if_memory_increases("before list_next");
 	heap->sweeping_page = list_next(&heap->pages, sweep_page, page_node);
-
+        print_if_memory_increases("after list_next");
 	if (sweep_page->final_slots + free_slots == sweep_page->total_slots &&
 	    heap_pages_freeable_pages > 0 &&
 	    unlink_limit > 0) {
@@ -6673,6 +6713,10 @@ gc_rest(rb_objspace_t *objspace)
 {
     int marking = is_incremental_marking(objspace);
     int sweeping = is_lazy_sweeping(heap_eden);
+    // f = fopen(test_file_name, "a+");
+    // struct rusage r_usage;
+    // getrusage(RUSAGE_SELF, &r_usage);
+    // fprintf(f, "Process ID %d, Memory usage before gc_enter: %f MB\n", getpid(), to_megabytes(r_usage.ru_maxrss));
 
     if (marking || sweeping) {
 	gc_enter(objspace, "gc_rest");
@@ -6687,6 +6731,7 @@ gc_rest(rb_objspace_t *objspace)
 	if (is_lazy_sweeping(heap_eden)) {
 	    gc_sweep_rest(objspace);
 	}
+
 	gc_exit(objspace, "gc_rest");
     }
 }
